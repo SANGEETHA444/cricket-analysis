@@ -1,0 +1,374 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>IPL Analysis</h2>
+    
+    <div class="alert {% if error %}alert-danger{% else %}alert-success{% endif %}" role="alert">
+        {{ connection_status }}
+        {% if error %}
+            <br>Error: {{ error }}
+        {% endif %}
+    </div>
+
+    <div class="mt-3">
+        <button class="btn btn-primary" onclick="testMongoDB()">Test MongoDB Connection</button>
+    </div>
+
+    <div id="testResults" class="mt-3" style="display: none;">
+        <h4>Test Results</h4>
+        <div id="testResultsContent"></div>
+    </div>
+
+    <div id="playerSearch" class="mt-4">
+        <h3>Search Player</h3>
+        <form id="playerForm" method="POST" action="{% url 'search_player' %}">
+            {% csrf_token %}
+            <div class="input-group">
+                <input type="text" class="form-control" id="playerNameInput" placeholder="Enter player name" name="player_name" required>
+                <button class="btn btn-primary" type="submit">Search</button>
+            </div>
+        </form>
+    </div>
+
+    <div id="loading" class="text-center" style="display: none;">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+
+    <div id="results" class="mt-4" style="display: none;">
+        <div class="row">
+            <div class="col-md-6">
+                <h4>Player Statistics</h4>
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Basic Info</h5>
+                        <p class="card-text">
+                            <strong>Name:</strong> <span id="playerName">-</span><br>
+                            <strong>Total Matches:</strong> <span id="totalMatches">0</span><br>
+                            <strong>Total Runs:</strong> <span id="totalRuns">0</span><br>
+                            <strong>Total Wickets:</strong> <span id="totalWickets">0</span><br>
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <h4>Performance Charts</h4>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-body">
+                                <div id="runsChart" style="height: 400px;"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-body">
+                                <div id="wicketsChart" style="height: 400px;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="error" class="alert alert-danger" style="display: none;"></div>
+</div>
+
+<script>
+    function testMongoDB() {
+        fetch("{% url 'test_mongodb' %}", {
+            method: 'GET'
+        })
+        .then(response => response.json())
+        .then(data => {
+            const resultsDiv = document.getElementById('testResults');
+            const resultsContent = document.getElementById('testResultsContent');
+            
+            resultsDiv.style.display = 'block';
+            
+            if (data.status === 'error') {
+                resultsContent.innerHTML = `
+                    <div class="alert alert-danger">
+                        Error: ${data.message}
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = '<div class="card">' +
+                        '<div class="card-header">' +
+                        'Available Collections' +
+                        '</div>' +
+                        '<div class="card-body">' +
+                        '<ul class="list-group">';
+            
+            data.collections.forEach(collection => {
+                const collectionData = data.collection_data[collection];
+                html += '<li class="list-group-item">' +
+                        '<strong>' + collection + '</strong>' +
+                        '<br>' +
+                        'Documents: ' + collectionData.count +
+                        '<br>' +
+                        '<pre>' + JSON.stringify(collectionData.sample, null, 2) + '</pre>' +
+                        '</li>';
+            });
+            
+            html += '</ul></div></div>';
+            resultsContent.innerHTML = html;
+        })
+        .catch(error => {
+            document.getElementById('testResultsContent').innerHTML = `
+                <div class="alert alert-danger">
+                    Error: ${error.message}
+                </div>
+            `;
+        });
+    }
+
+    // Add Plotly.js with error handling
+    const script = document.createElement('script');
+    script.src = 'https://cdn.plot.ly/plotly-latest.min.js';
+    script.async = true;
+    script.defer = true;
+    script.onload = function() {
+        console.log('Plotly loaded successfully');
+        // Check if we have data to create charts
+        const runsData = localStorage.getItem('runsData');
+        const wicketsData = localStorage.getItem('wicketsData');
+        if (runsData) {
+            createRunsChart(JSON.parse(runsData));
+        }
+        if (wicketsData) {
+            createWicketsChart(JSON.parse(wicketsData));
+        }
+    };
+    script.onerror = function() {
+        console.error('Failed to load Plotly');
+    };
+    document.head.appendChild(script);
+
+    function createRunsChart(data) {
+        if (!data || data.length === 0) {
+            console.log('No runs data to display');
+            return;
+        }
+
+        console.log('Creating runs chart with data:', data);
+
+        const trace = {
+            x: data.map(d => d.season),
+            y: data.map(d => d.runs),
+            type: 'bar',
+            marker: {
+                color: '#FF69B4',  // Pink color
+                line: {
+                    color: 'rgba(255, 105, 180, 0.8)',
+                    width: 1
+                }
+            }
+        };
+
+        const layout = {
+            title: 'Runs by Season',
+            xaxis: {
+                title: 'Season',
+                tickangle: -45,
+                type: 'category',
+                tickfont: {
+                    size: 12
+                }
+            },
+            yaxis: {
+                title: 'Runs',
+                tickfont: {
+                    size: 12
+                }
+            },
+            margin: {
+                l: 60,
+                r: 20,
+                t: 80,
+                b: 120
+            },
+            height: 400,
+            width: 400,
+            showlegend: false,
+            barmode: 'stack',
+            bargap: 0.1,
+            plot_bgcolor: 'rgba(0,0,0,0)',
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            font: {
+                family: 'Arial, sans-serif',
+                size: 12
+            }
+        };
+
+        try {
+            Plotly.newPlot('runsChart', [trace], layout, {displayModeBar: false});
+            console.log('Runs chart created successfully');
+        } catch (error) {
+            console.error('Error creating runs chart:', error);
+        }
+    }
+
+    function createWicketsChart(data) {
+        if (!data || data.length === 0) {
+            console.log('No wickets data to display');
+            return;
+        }
+
+        console.log('Creating wickets chart with data:', data);
+
+        const trace = {
+            x: data.map(d => d.season),
+            y: data.map(d => d.wickets),
+            type: 'bar',
+            marker: {
+                color: '#00BFFF',  // Light blue color
+                line: {
+                    color: 'rgba(0, 191, 255, 0.8)',
+                    width: 1
+                }
+            }
+        };
+
+        const layout = {
+            title: 'Wickets by Season',
+            xaxis: {
+                title: 'Season',
+                tickangle: -45,
+                type: 'category',
+                tickfont: {
+                    size: 12
+                }
+            },
+            yaxis: {
+                title: 'Wickets',
+                tickfont: {
+                    size: 12
+                }
+            },
+            margin: {
+                l: 60,
+                r: 20,
+                t: 80,
+                b: 120
+            },
+            height: 400,
+            width: 400,
+            showlegend: false,
+            barmode: 'stack',
+            bargap: 0.1,
+            plot_bgcolor: 'rgba(0,0,0,0)',
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            font: {
+                family: 'Arial, sans-serif',
+                size: 12
+            }
+        };
+
+        try {
+            Plotly.newPlot('wicketsChart', [trace], layout, {displayModeBar: false});
+            console.log('Wickets chart created successfully');
+        } catch (error) {
+            console.error('Error creating wickets chart:', error);
+        }
+    }
+
+    document.getElementById('playerForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const playerName = document.querySelector('input[name="player_name"]').value.trim();
+        if (!playerName) {
+            alert('Please enter a player name');
+            return;
+        }
+
+        // Show loading
+        document.getElementById('loading').style.display = 'block';
+        document.getElementById('results').style.display = 'none';
+        document.getElementById('error').style.display = 'none';
+
+        // Make AJAX request
+        fetch("{% url 'search_player' %}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: 'player_name=' + encodeURIComponent(playerName)
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response status: ' + response.status);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Search response:', data);
+            
+            if (data.error) {
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('error').innerHTML = data.error;
+                document.getElementById('loading').style.display = 'none';
+                return;
+            }
+
+            // Update player stats
+            document.getElementById('playerName').textContent = data.player_stats.player_name || 'N/A';
+            document.getElementById('totalMatches').textContent = data.player_stats.total_matches || 0;
+            document.getElementById('totalRuns').textContent = data.player_stats.total_runs || 0;
+            document.getElementById('totalWickets').textContent = data.player_stats.total_wickets || 0;
+
+            // Show results
+            document.getElementById('results').style.display = 'block';
+            document.getElementById('loading').style.display = 'none';
+
+            // Store data in localStorage if Plotly isn't loaded yet
+            if (typeof Plotly === 'undefined') {
+                console.log('Plotly not loaded yet, storing data in localStorage');
+                localStorage.setItem('runsData', JSON.stringify(data.runs_by_season));
+                localStorage.setItem('wicketsData', JSON.stringify(data.wickets_by_season));
+            }
+
+            // Create charts
+            if (Array.isArray(data.runs_by_season) && data.runs_by_season.length > 0) {
+                createRunsChart(data.runs_by_season);
+            }
+
+            if (Array.isArray(data.wickets_by_season) && data.wickets_by_season.length > 0) {
+                createWicketsChart(data.wickets_by_season);
+            }
+        })
+        .catch(error => {
+            console.error('Search error:', error);
+            document.getElementById('error').style.display = 'block';
+            document.getElementById('error').innerHTML = 'Error: ' + error.message || 'An error occurred';
+            document.getElementById('loading').style.display = 'none';
+        });
+    });
+        Plotly.newPlot('runsChart', [trace], layout);
+    }
+
+    function createWicketsChart(data) {
+        const trace = {
+            x: data.map(d => d.season),
+            y: data.map(d => d.wickets),
+            type: 'bar',
+            name: 'Wickets'
+        };
+        
+        const layout = {
+            title: 'Wickets by Season',
+            xaxis: { title: 'Season' },
+            yaxis: { title: 'Wickets' }
+        };
+        
+        Plotly.newPlot('wicketsChart', [trace], layout);
+    }
+</script>
+{% endblock %}

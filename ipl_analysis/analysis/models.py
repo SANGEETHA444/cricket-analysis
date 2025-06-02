@@ -1,0 +1,58 @@
+from mongoengine import Document, IntField, StringField, FloatField
+
+class Match(Document):
+    id = IntField(primary_key=True)
+    season = StringField(max_length=10)
+    city = StringField(max_length=100, required=False)
+    date = StringField(max_length=50)
+    match_type = StringField(max_length=50, required=False)
+    player_of_match = StringField(max_length=100, required=False)
+    venue = StringField(max_length=200, required=False)
+    team1 = StringField(max_length=100)
+    team2 = StringField(max_length=100)
+    toss_winner = StringField(max_length=100, required=False)
+    toss_decision = StringField(max_length=50, required=False)
+    winner = StringField(max_length=100, required=False)
+    result = StringField(max_length=50, required=False)
+    result_margin = StringField(max_length=10, required=False, default='')
+    target_runs = StringField(max_length=10, required=False, default='')
+    target_overs = StringField(max_length=10, required=False, default='')
+    super_over = StringField(max_length=5, required=False, default='')
+    method = StringField(max_length=50, required=False, default='')
+    umpire1 = StringField(max_length=100, required=False)
+    umpire2 = StringField(max_length=100, required=False)
+
+class Delivery(Document):
+    match_id = IntField()
+    inning = IntField()
+    batting_team = StringField(max_length=100)
+    bowling_team = StringField(max_length=100)
+    over = IntField()
+    ball = IntField()
+    batsman = StringField(max_length=100)
+    non_striker = StringField(max_length=100, required=False, default='')
+    bowler = StringField(max_length=100)
+    extras_type = StringField(max_length=10, required=False, default='')
+    batsman_runs = StringField(max_length=5)
+    extra_runs = StringField(max_length=5, required=False, default='')
+    total_runs = StringField(max_length=5)
+    player_dismissed = StringField(max_length=100, required=False, default='')
+    dismissal_kind = StringField(max_length=50, required=False, default='')
+    fielder = StringField(max_length=100, required=False, default='')
+
+class PlayerStats(Document):
+    player_name = StringField(max_length=100)
+    matches_played = IntField()
+    total_matches = IntField()
+    total_runs = IntField()
+    total_wickets = IntField()
+    highest_score = IntField()
+    best_bowling = StringField(max_length=20)
+    batting_average = FloatField()
+    bowling_average = FloatField()
+    strike_rate = FloatField()
+    economy_rate = FloatField()
+    player_type = StringField(max_length=20)
+    
+    class Meta:
+        ordering = ['-total_runs']
